@@ -1,14 +1,15 @@
-# DiNomaly Model Performance Comparison Report: MVTec-AD vs. MVTec LOCO AD
+# Deep Comparative Analysis of DiNomaly: MVTec-AD vs. MVTec LOCO AD
+*An In-Depth Study Based on Bergmann et al. (CVPR 2019 & CVPR 2022)*
 
-This report presents a comprehensive academic analysis of the performance differences of the **DiNomaly** model when trained and evaluated on two major industrial anomaly detection datasets:
-1.  **MVTec-AD**: The standard benchmark dataset (tested in the original DiNomaly paper).
-2.  **MVTec LOCO AD**: The logical constraints anomaly detection dataset (tested in our project).
+This report provides a deep comparative analysis of the **DiNomaly** model's performance on the standard **MVTec-AD** dataset versus the **MVTec LOCO AD** dataset. It references the core theoretical foundations of the two dataset papers:
+1.  **MVTec-AD Paper**: *"MVTec AD — A Comprehensive Real-World Dataset for Unsupervised Anomaly Detection"* (CVPR 2019)
+2.  **MVTec LOCO AD Paper**: *"Beyond Denting: Introducing the MVTec Logical Constraints Anomaly Detection Dataset"* (CVPR 2022)
 
 ---
 
 ## 1. Metric Performance Comparison Table
 
-The table below compares the performance of DiNomaly (ViT-Base/14 backbone) on both datasets:
+Below is the comparative metric breakdown of the DiNomaly model (ViT-Base/14 backbone) trained under the multi-class setting:
 
 | Dataset | Image AUROC | Image AP | Image F1-max | Pixel AUROC | Pixel AP | Pixel F1-max | Pixel AUPRO | Combined / Mean |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -18,63 +19,98 @@ The table below compares the performance of DiNomaly (ViT-Base/14 backbone) on b
 
 ---
 
-## 2. In-Depth Analysis of Performance Discrepancy
+## 2. Mathematical Modeling of Anomalies in UAD
 
-The performance drop on MVTec LOCO AD is highly significant, particularly in **pixel-level localization metrics (P-AP and P-F1 drop by over 36%)** and **AUPRO (drops by 31%)**. 
+To understand why the same model performs so differently on these two datasets, we must model anomaly detection mathematically. 
 
-We analyze this discrepancy across three primary dimensions: **Image Morphology (Data Distribution)**, **Model Architecture (Inductive Biases)**, and **Training & Evaluation Methods**.
-
----
-
-### Dimension A: Image Morphology & Nature of Anomalies
-
-#### 1. Structural Defects vs. Logical Constraints
-*   **MVTec-AD**: Focuses exclusively on **structural anomalies** (scratches, dents, cracks, stains, or missing parts). These anomalies manifest as local, high-contrast, high-frequency textural or geometric deformations.
-*   **MVTec LOCO AD**: Specifically designed to evaluate **logical anomalies**. Logical anomalies violate global spatial constraints or co-occurrence rules (e.g., an incorrect number of components, correct components placed in wrong boxes, or incorrect liquid levels).
-*   **Impact on Metrics**: As seen in our LOCO results, DiNomaly performs exceptionally well on LOCO's **Structural subset (Image AUROC: 92.89%, Pixel AUROC: 96.24%)**, which is comparable to its performance on MVTec-AD. However, it struggles on LOCO's **Logical subset (Image AUROC: 73.72%, Pixel AUPRO: 50.30%)**.
+Let an image $X$ be represented as a set of local patches $X = \{p_1, p_2, \dots, p_N\}$, where each patch $p_i \in \mathbb{R}^{d}$ represents local texture and structure.
 
 ```
-Logical Anomaly (e.g., wrong object count)  --> Identical local textures --> Decoder reconstructs it easily --> Low reconstruction error
-Structural Anomaly (e.g., scratch on surface) --> Novel local texture     --> Decoder fails to reconstruct --> High reconstruction error
+                  ┌──────────────────────────────────────────┐
+                  │          Total Image Space (X)           │
+                  │                                          │
+                  │   ┌──────────────────────────────────┐   │
+                  │   │     Global Joint Manifold        │   │
+                  │   │      P_global(p_1,...,p_N)       │   │
+                  │   │                                  │   │
+                  │   │   ┌──────────────────────────┐   │   │
+                  │   │   │  Local Patch Manifold    │   │   │
+                  │   │   │       P_local(p_i)       │   │   │
+                  │   │   └──────────────────────────┘   │   │
+                  │   └──────────────────────────────────┘   │
+                  └──────────────────────────────────────────┘
 ```
 
-#### 2. The Identity Reconstruction Trap of Logical Anomalies
-*   For structural anomalies, the training set never contains scratches, so the decoder cannot reconstruct them.
-*   For logical anomalies, the individual objects themselves (e.g., a pushpin or a screw) are **completely normal in appearance** and have been seen thousands of times during training. The anomaly lies solely in their *number* or *spatial arrangement*.
-*   Since the encoder (DINOv2) extracts excellent representation tokens for these "normal-looking" objects, the decoder reconstructs them **perfectly**, even if they are in the wrong place or quantity. This leads to **very low reconstruction error on anomalous regions**, causing a severe drop in localization metrics (P-AP and P-AUPRO).
+### 1. The Local Patch Manifold: $P_{\text{local}}(p_i)$
+Unsupervised Anomaly Detection (UAD) models learn the probability distribution of normal local patches. If a patch $p_i$ has a low probability under this distribution:
+$$P_{\text{local}}(p_i) < \epsilon$$
+it is classified as a **structural anomaly** (e.g., a scratch, crack, or hole).
+
+### 2. The Global Joint Manifold: $P_{\text{global}}(p_1, p_2, \dots, p_N)$
+Logical anomalies do not violate local patch distributions; they violate the joint probability distribution of all patches in the image. An image contains a logical anomaly if:
+$$P_{\text{global}}(p_1, p_2, \dots, p_N) < \epsilon \quad \text{while} \quad \forall i, P_{\text{local}}(p_i) \geq \theta$$
+This means every single patch $p_i$ is completely normal locally, but their co-occurrence or spatial arrangement is invalid.
 
 ---
 
-### Dimension B: Model Architecture & Representation Bottlenecks
+## 3. Essential Differences Between the Datasets
 
-#### 1. DINOv2 Semantic Feature Bias
-*   **DINOv2** is trained via self-supervised learning (DINO + iBOT) on massive natural image datasets. Its feature representations are highly **semantic** and **locally robust**.
-*   This local robustness means DINOv2 is invariant to minor spatial shifts, which makes it excellent at ignoring noise in MVTec-AD.
-*   However, detecting logical anomalies requires strict **relative spatial geometry** and **exact counting**. DINOv2’s semantic tokens tend to represent *what* the object is (e.g., "screw") rather than *exactly where* it is relative to a coordinate frame or *how many* there are.
+### A. MVTec-AD (CVPR 2019): The Local Manifold Paradigm
+In the CVPR 2019 paper, Bergmann et al. defined anomalies as **structural defects** (e.g., scratches on leather, broken wires in grid, or contamination on pills). 
+*   **Textural and Structural OOD**: These anomalies introduce novel high-frequency textures, color changes, or structural breaks.
+*   **Locally Out-of-Distribution (OOD)**: A patch containing a scratch is OOD relative to the normal local patch manifold $P_{\text{local}}$.
+*   **Reconstruction Failure**: Because the model is trained exclusively on normal local manifolds, it lacks the capacity to reconstruct OOD textures. The reconstruction error at the scratch patch is naturally high, allowing easy detection.
 
-#### 2. Linear Attention Limitation
-*   DiNomaly replaces standard softmax attention in the decoder with **Linear Attention** (`LinearAttention2`) to maintain linear complexity with respect to token length.
-*   Softmax attention computes non-linear pairwise similarity matrices, which are highly sensitive to exact pixel-level positional coordinate shifts.
-*   Linear attention computes key-value aggregations first, smoothing out spatial details. This spatial smoothing makes it extremely difficult for the decoder to capture strict structural rules (such as: *"a splicing connector must have exactly 5 metal pins"*). When a connector has only 4 pins, the smoothed attention maps fail to recognize the missing slot, leading to a low reconstruction error.
-
----
-
-### Dimension C: Training Dynamics & Evaluation Logic
-
-#### 1. Intra-class Variance vs. Inter-class Variance
-*   In **MVTec-AD**, objects are highly aligned and rigid (e.g., a transistor is always in the center under the same camera angle). The intra-class variance of normal images is near zero.
-*   In **MVTec LOCO AD**, normal images have high intra-class variance. For example, in the `screw_bag` category, the screws and washers are allowed to slide around randomly inside the plastic bag. 
-*   Because the normal bagging layout is random, the DiNomaly decoder is forced to learn a **highly relaxed reconstruction constraint** to avoid false positives. This loose constraint behaves like a low-pass filter, which inadvertently allows logical anomalies (such as a missing washer) to be reconstructed within the "normal variation" boundary, resulting in a high rate of False Negatives.
-
-#### 2. Metric Sensitivity (AUPRO and Pixel-level AP)
-*   **MVTec-AD** contains relatively large defect regions (like a large scratch or patch of rust), making it easier to hit a high Pixel-level Average Precision (69.30%).
-*   **MVTec LOCO AD** logical defects are often point-like or subtle boundary mismatches (e.g., a screw head offset by 2mm). The ground-truth mask is tiny. 
-*   For small masks, any slight leakage or blur in the anomaly map (caused by bilinear interpolation and Gaussian filtering in `cal_anomaly_maps`) introduces many false positive pixels. This drastically penalizes **Pixel-level AP (32.01%)** and **AUPRO (63.46% overall, dropping to 50.30% on Logical)**.
+### B. MVTec LOCO AD (CVPR 2022): The "Beyond Denting" Paradigm
+In the CVPR 2022 paper, Bergmann et al. argued that industrial inspection must move **"beyond denting"** (beyond simple local structural defects). They introduced **Logical Constraints**:
+*   **Visually Intact Components**: The individual components (e.g., a screw, a washpin, a capsule) are **visually intact and completely normal**.
+*   **Locally In-Distribution (ID)**: Every local patch in a logical anomaly exists in the normal training set. For instance, in `breakfast_box`, the patch containing a nectarine is ID ($P_{\text{local}}(p_i) \geq \theta$) whether there is one nectarine or two in the box.
+*   **Global Relational Violations**: The anomaly is OOD only under the global joint distribution $P_{\text{global}}$ (e.g., the co-occurrence of two nectarines with no energy bar).
 
 ---
 
-## 3. Conclusions and Project Insights
+## 4. Why the Same Model Performs Differently
 
-1.  **Duality of UAD**: The experiment proves that unsupervised anomaly detection is not a single unified task. Models that excel at structural anomaly detection (99.6% on MVTec-AD) are fundamentally bottlenecked when faced with logical and relationship constraints (83.3% on LOCO).
-2.  **Architectural Trade-offs**: While Linear Attention and Noisy Bottlenecks stabilize multi-class training and prevent shortcut learning for textures, they limit the model's capacity to represent strict geometric and counting structures.
-3.  **Future Directions**: To bridge the gap on datasets like MVTec LOCO AD, future models should integrate **explicit object-level binding** (e.g., combining ViT reconstructions with object query detection like DETR) or utilize **visual-language models (VLMs)** to query logical contradictions directly.
+When we train DiNomaly on both datasets, the architectural and training properties interact with these dataset differences in the following ways:
+
+### 1. Decoder Over-Generalization (Reconstruction Capacity)
+*   **In MVTec-AD**: The encoder (DINOv2) extracts OOD features for scratches. The decoder cannot map these OOD features back to the original image, leading to high reconstruction error.
+*   **In MVTec LOCO AD (Logical)**: Because the misplaced or extra object is locally normal, DINOv2 extracts **completely normal semantic features**. The decoder, being a highly expressive Transformer network, easily reconstructs these normal features.
+*   **The Paradox**: The neural network **over-generalizes**; it reconstructs the logically invalid object perfectly because it knows how to reconstruct that object from the training set. Since the reconstruction error is low, the anomaly remains undetected.
+
+### 2. DINOv2 Semantic Representation Bias vs. Geometric Precision
+*   **Semantic Invariance**: DINOv2 is trained via self-supervised learning to be invariant to minor spatial deformations, scaling, and background noise. It represents *what* an object is (e.g., "a pushpin") exceptionally well.
+*   **Counting & Coordinate Blindness**: DINOv2 features are soft and semantic. They do not enforce hard coordinates or count objects. 
+*   **Result**: While this semantic invariance helps DiNomaly achieve **99.6% AUROC** on MVTec-AD (ignoring minor alignment noise), it prevents it from detecting when there are 4 pushpins instead of 5, leading to poor logical performance on `pushpins` (Image AUROC: 59.84%) and `screw_bag` (Image AUROC: 55.78%).
+
+### 3. Linear Attention Bottleneck
+*   **Softmax Attention**: Standard Transformers compute pairwise softmax similarity, which acts as a routing mechanism that can preserve exact spatial offsets.
+*   **Linear Attention**: DiNomaly utilizes `LinearAttention2` (which computes $\phi(Q)\phi(K)^T V$). While this achieves linear efficiency ($O(N)$), it acts as a **spatial low-pass filter**.
+*   **Loss of Relational Constraints**: The spatial smoothing of linear attention makes the decoder blind to exact geometric boundaries and counts. It can reconstruct a smooth layout of objects but fails to enforce strict logical checks (e.g., *"this metal pin must align exactly with this slot"*).
+
+### 4. High Intra-class Variance in Training
+*   **MVTec-AD**: Normal images are strictly aligned (rigid registration). The intra-class variance is near zero. The model can learn a very tight boundary of normal features.
+*   **MVTec LOCO AD**: Normal images contain random configurations. For example, in `screw_bag`, the screws are placed randomly inside a transparent bag.
+*   **Relayed Constraints**: To prevent false positives on these randomly sliding screws, the model's loss function must relax its constraints. This relaxation behaves like a low-pass filter, allowing anomalies (e.g., a missing screw) to be reconstructed within the "normal variation" boundary, resulting in a high rate of False Negatives.
+
+---
+
+## 5. Summary of Key Insights for Project Presentation
+
+To summarize this comparison for your term project, use this structured logic:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. MVTec-AD is "Local Texture UAD"                                          │
+│    - Defects are OOD locally.                                               │
+│    - DiNomaly excels (99.6% AUROC) because local OOD features cannot be     │
+│      reconstructed.                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. MVTec LOCO AD is "Global Relational UAD"                                 │
+│    - Defect parts are ID locally, OOD globally.                             │
+│    - DiNomaly drops (83.3% Combined) because the powerful decoder           │
+│      over-generalizes and reconstructs locally normal OOD objects.          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+This contrast highlights that **unsupervised reconstruction-based models have a fundamental theoretical limit**: they cannot easily distinguish between a locally normal valid assembly and a locally normal invalid assembly without explicit relational graph modeling or object-counting constraints.

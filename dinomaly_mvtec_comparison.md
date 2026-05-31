@@ -23,7 +23,7 @@ Below is the comparative metric breakdown of the DiNomaly model (ViT-Base/14 bac
 
 To understand why the same model performs so differently on these two datasets, we must model anomaly detection mathematically. 
 
-Let an image $X$ be represented as a set of local patches $X = \{p_1, p_2, \dots, p_N\}$, where each patch $p_i \in \mathbb{R}^{d}$ represents local texture and structure.
+Let an image X be represented as a set of local patches X = {p_1, p_2, ..., p_N}, where each patch p_i represents local texture and structure.
 
 ```
                   ┌──────────────────────────────────────────┐
@@ -41,15 +41,15 @@ Let an image $X$ be represented as a set of local patches $X = \{p_1, p_2, \dots
                   └──────────────────────────────────────────┘
 ```
 
-### 1. The Local Patch Manifold: $P_{\text{local}}(p_i)$
-Unsupervised Anomaly Detection (UAD) models learn the probability distribution of normal local patches. If a patch $p_i$ has a low probability under this distribution:
-$$P_{\text{local}}(p_i) < \epsilon$$
+### 1. The Local Patch Manifold: P_local(p_i)
+Unsupervised Anomaly Detection (UAD) models learn the probability distribution of normal local patches. If a patch p_i has a low probability under this distribution:
+*   **P_local(p_i) < ε** (where ε is a very small threshold)
 it is classified as a **structural anomaly** (e.g., a scratch, crack, or hole).
 
-### 2. The Global Joint Manifold: $P_{\text{global}}(p_1, p_2, \dots, p_N)$
+### 2. The Global Joint Manifold: P_global(p_1, p_2, ..., p_N)
 Logical anomalies do not violate local patch distributions; they violate the joint probability distribution of all patches in the image. An image contains a logical anomaly if:
-$$P_{\text{global}}(p_1, p_2, \dots, p_N) < \epsilon \quad \text{while} \quad \forall i, P_{\text{local}}(p_i) \geq \theta$$
-This means every single patch $p_i$ is completely normal locally, but their co-occurrence or spatial arrangement is invalid.
+*   **P_global(p_1, p_2, ..., p_N) < ε**   *while*   **for all i, P_local(p_i) >= θ** (where θ is a normal threshold)
+This means every single patch p_i is completely normal locally, but their co-occurrence or spatial arrangement is invalid.
 
 ---
 

@@ -129,16 +129,18 @@ def main(args):
         auroc_both_list.append(auroc_both)
         
         print(
-            f"{item:20s} | I-AUROC: {auroc_sp:.4f} | P-AUROC: {auroc_px:.4f} | P-AUPRO: {aupro_px:.4f} | "
+            f"{item:20s} | I-AUROC: {auroc_sp:.4f} | I-AP: {ap_sp:.4f} | I-F1: {f1_sp:.4f} | "
+            f"P-AUROC: {auroc_px:.4f} | P-AP: {ap_px:.4f} | P-F1: {f1_px:.4f} | "
             f"Logical: {auroc_logic:.4f} | Struct: {auroc_struct:.4f} | Combined: {auroc_both:.4f}"
         )
         
-    print("-" * 120)
+    print("-" * 150)
     print(
-        f"{'MEAN':20s} | I-AUROC: {np.mean(auroc_sp_list):.4f} | P-AUROC: {np.mean(auroc_px_list):.4f} | P-AUPRO: {np.mean(aupro_px_list):.4f} | "
+        f"{'MEAN':20s} | I-AUROC: {np.mean(auroc_sp_list):.4f} | I-AP: {np.mean(ap_sp_list):.4f} | I-F1: {np.mean(f1_sp_list):.4f} | "
+        f"P-AUROC: {np.mean(auroc_px_list):.4f} | P-AP: {np.mean(ap_px_list):.4f} | P-F1: {np.mean(f1_px_list):.4f} | "
         f"Logical: {np.mean(auroc_logic_list):.4f} | Struct: {np.mean(auroc_struct_list):.4f} | Combined: {np.mean(auroc_both_list):.4f}"
     )
-    print("-" * 120 + "\n")
+    print("-" * 150 + "\n")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Inference and evaluation of Dinomaly on MVTec LOCO AD.')

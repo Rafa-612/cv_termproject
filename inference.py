@@ -103,9 +103,9 @@ def main(args):
     
     print("\nStarting evaluation...")
     
-    auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
-    auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
-    auroc_logic_list, auroc_struct_list, auroc_both_list = [], [], []
+    overall_results = []
+    logic_results = []
+    struct_results = []
     
     for item in item_list:
         eval_dataset = test_datasets[item]
@@ -114,33 +114,72 @@ def main(args):
         test_loader = DataLoader(eval_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
         
         # Evaluate category
-        results = evaluation_batch_loco(model, test_loader, device, max_ratio=0.01, resize_mask=256)
-        auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, auroc_logic, auroc_struct, auroc_both = results
+        res = evaluation_batch_loco(model, test_loader, device, max_ratio=0.01, resize_mask=256)
         
-        auroc_sp_list.append(auroc_sp)
-        ap_sp_list.append(ap_sp)
-        f1_sp_list.append(f1_sp)
-        auroc_px_list.append(auroc_px)
-        ap_px_list.append(ap_px)
-        f1_px_list.append(f1_px)
-        aupro_px_list.append(aupro_px)
-        auroc_logic_list.append(auroc_logic)
-        auroc_struct_list.append(auroc_struct)
-        auroc_both_list.append(auroc_both)
+        overall_results.append({
+            'item': item,
+            'auroc_sp': res['auroc_sp'], 'ap_sp': res['ap_sp'], 'f1_sp': res['f1_sp'],
+            'auroc_px': res['auroc_px'], 'ap_px': res['ap_px'], 'f1_px': res['f1_px'], 'aupro_px': res['aupro_px'],
+            'combined': res['combined']
+        })
         
-        print(
-            f"{item:20s} | I-AUROC: {auroc_sp:.4f} | I-AP: {ap_sp:.4f} | I-F1: {f1_sp:.4f} | "
-            f"P-AUROC: {auroc_px:.4f} | P-AP: {ap_px:.4f} | P-F1: {f1_px:.4f} | "
-            f"Logical: {auroc_logic:.4f} | Struct: {auroc_struct:.4f} | Combined: {auroc_both:.4f}"
+        logic_results.append({
+            'item': item,
+            'auroc_sp': res['logic']['auroc_sp'], 'ap_sp': res['logic']['ap_sp'], 'f1_sp': res['logic']['f1_sp'],
+            'auroc_px': res['logic']['auroc_px'], 'ap_px': res['logic']['ap_px'], 'f1_px': res['logic']['f1_px'], 'aupro_px': res['logic']['aupro_px']
+        })
+        
+        struct_results.append({
+            'item': item,
+            'auroc_sp': res['struct']['auroc_sp'], 'ap_sp': res['struct']['ap_sp'], 'f1_sp': res['struct']['f1_sp'],
+            'auroc_px': res['struct']['auroc_px'], 'ap_px': res['struct']['ap_px'], 'f1_px': res['struct']['f1_px'], 'aupro_px': res['struct']['aupro_px']
+        })
+
+    # Helper function to print a table
+    def print_table(title, results_list, include_combined=False):
+        print(f"\n==================== {title} ====================")
+        header = f"{'Category':20s} | I-AUROC | I-AP    | I-F1    | P-AUROC | P-AP    | P-F1    | P-AUPRO"
+        if include_combined:
+            header += " | Combined"
+        print(header)
+        print("-" * len(header))
+        
+        auroc_sps, ap_sps, f1_sps = [], [], []
+        auroc_pxs, ap_pxs, f1_pxs, aupro_pxs = [], [], [], []
+        combineds = []
+        
+        for r in results_list:
+            row = (
+                f"{r['item']:20s} | {r['auroc_sp']:.4f}  | {r['ap_sp']:.4f}  | {r['f1_sp']:.4f}  | "
+                f"{r['auroc_px']:.4f}  | {r['ap_px']:.4f}  | {r['f1_px']:.4f}  | {r['aupro_px']:.4f}"
+            )
+            if include_combined:
+                row += f"  | {r['combined']:.4f}"
+            print(row)
+            
+            auroc_sps.append(r['auroc_sp'])
+            ap_sps.append(r['ap_sp'])
+            f1_sps.append(r['f1_sp'])
+            auroc_pxs.append(r['auroc_px'])
+            ap_pxs.append(r['ap_px'])
+            f1_pxs.append(r['f1_px'])
+            aupro_pxs.append(r['aupro_px'])
+            if include_combined:
+                combineds.append(r['combined'])
+                
+        print("-" * len(header))
+        mean_row = (
+            f"{'MEAN':20s} | {np.mean(auroc_sps):.4f}  | {np.mean(ap_sps):.4f}  | {np.mean(f1_sps):.4f}  | "
+            f"{np.mean(auroc_pxs):.4f}  | {np.mean(ap_pxs):.4f}  | {np.mean(f1_pxs):.4f}  | {np.mean(aupro_pxs):.4f}"
         )
-        
-    print("-" * 150)
-    print(
-        f"{'MEAN':20s} | I-AUROC: {np.mean(auroc_sp_list):.4f} | I-AP: {np.mean(ap_sp_list):.4f} | I-F1: {np.mean(f1_sp_list):.4f} | "
-        f"P-AUROC: {np.mean(auroc_px_list):.4f} | P-AP: {np.mean(ap_px_list):.4f} | P-F1: {np.mean(f1_px_list):.4f} | "
-        f"Logical: {np.mean(auroc_logic_list):.4f} | Struct: {np.mean(auroc_struct_list):.4f} | Combined: {np.mean(auroc_both_list):.4f}"
-    )
-    print("-" * 150 + "\n")
+        if include_combined:
+            mean_row += f"  | {np.mean(combineds):.4f}"
+        print(mean_row)
+        print("=" * len(header) + "\n")
+
+    print_table("Overall Performance (Mixed)", overall_results, include_combined=True)
+    print_table("Logical Anomalies Performance", logic_results, include_combined=False)
+    print_table("Structural Anomalies Performance", struct_results, include_combined=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Inference and evaluation of Dinomaly on MVTec LOCO AD.')

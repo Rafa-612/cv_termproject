@@ -227,8 +227,17 @@ def main(args):
                     test_loader = DataLoader(eval_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
                     
                     # Evaluate LOCO category
-                    results = evaluation_batch_loco(model, test_loader, device, max_ratio=0.01, resize_mask=256)
-                    auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, auroc_logic, auroc_struct, auroc_both = results
+                    res = evaluation_batch_loco(model, test_loader, device, max_ratio=0.01, resize_mask=256)
+                    auroc_sp = res['auroc_sp']
+                    ap_sp = res['ap_sp']
+                    f1_sp = res['f1_sp']
+                    auroc_px = res['auroc_px']
+                    ap_px = res['ap_px']
+                    f1_px = res['f1_px']
+                    aupro_px = res['aupro_px']
+                    auroc_logic = res['logic']['auroc_sp']
+                    auroc_struct = res['struct']['auroc_sp']
+                    auroc_both = res['combined']
                     
                     auroc_sp_list.append(auroc_sp)
                     ap_sp_list.append(ap_sp)

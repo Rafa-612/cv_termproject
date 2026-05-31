@@ -232,22 +232,79 @@ def evaluation_batch_loco(model, dataloader, device, max_ratio=0.01, resize_mask
         
         defect_type_list = np.array(defect_type_list)
         
-        # Calculate LOCO-specific logical and structural AUROCs
+        # 1. Logical Anomalies Subset
         logic_mask = np.logical_or(defect_type_list == 'good', defect_type_list == 'logical_anomalies')
-        struct_mask = np.logical_or(defect_type_list == 'good', defect_type_list == 'structural_anomalies')
         
+        # Image-level metrics for Logical
         try:
             auroc_logic = roc_auc_score(gt_list_sp[logic_mask], pr_list_sp[logic_mask]) if len(np.unique(gt_list_sp[logic_mask])) > 1 else 0.0
         except Exception:
             auroc_logic = 0.0
+        try:
+            ap_logic = average_precision_score(gt_list_sp[logic_mask], pr_list_sp[logic_mask]) if len(np.unique(gt_list_sp[logic_mask])) > 1 else 0.0
+        except Exception:
+            ap_logic = 0.0
+        f1_logic = f1_score_max(gt_list_sp[logic_mask], pr_list_sp[logic_mask])
 
+        # Pixel-level metrics for Logical
+        gt_list_px_logic = gt_list_px[logic_mask]
+        pr_list_px_logic = pr_list_px[logic_mask]
+        aupro_px_logic = compute_pro(gt_list_px_logic, pr_list_px_logic)
+        gt_list_px_logic_flat, pr_list_px_logic_flat = gt_list_px_logic.ravel(), pr_list_px_logic.ravel()
+        try:
+            auroc_px_logic = roc_auc_score(gt_list_px_logic_flat, pr_list_px_logic_flat) if len(np.unique(gt_list_px_logic_flat)) > 1 else 0.0
+        except Exception:
+            auroc_px_logic = 0.0
+        try:
+            ap_px_logic = average_precision_score(gt_list_px_logic_flat, pr_list_px_logic_flat) if len(np.unique(gt_list_px_logic_flat)) > 1 else 0.0
+        except Exception:
+            ap_px_logic = 0.0
+        f1_px_logic = f1_score_max(gt_list_px_logic_flat, pr_list_px_logic_flat)
+
+        # 2. Structural Anomalies Subset
+        struct_mask = np.logical_or(defect_type_list == 'good', defect_type_list == 'structural_anomalies')
+        
+        # Image-level metrics for Structural
         try:
             auroc_struct = roc_auc_score(gt_list_sp[struct_mask], pr_list_sp[struct_mask]) if len(np.unique(gt_list_sp[struct_mask])) > 1 else 0.0
         except Exception:
             auroc_struct = 0.0
+        try:
+            ap_struct = average_precision_score(gt_list_sp[struct_mask], pr_list_sp[struct_mask]) if len(np.unique(gt_list_sp[struct_mask])) > 1 else 0.0
+        except Exception:
+            ap_struct = 0.0
+        f1_struct = f1_score_max(gt_list_sp[struct_mask], pr_list_sp[struct_mask])
+
+        # Pixel-level metrics for Structural
+        gt_list_px_struct = gt_list_px[struct_mask]
+        pr_list_px_struct = pr_list_px[struct_mask]
+        aupro_px_struct = compute_pro(gt_list_px_struct, pr_list_px_struct)
+        gt_list_px_struct_flat, pr_list_px_struct_flat = gt_list_px_struct.ravel(), pr_list_px_struct.ravel()
+        try:
+            auroc_px_struct = roc_auc_score(gt_list_px_struct_flat, pr_list_px_struct_flat) if len(np.unique(gt_list_px_struct_flat)) > 1 else 0.0
+        except Exception:
+            auroc_px_struct = 0.0
+        try:
+            ap_px_struct = average_precision_score(gt_list_px_struct_flat, pr_list_px_struct_flat) if len(np.unique(gt_list_px_struct_flat)) > 1 else 0.0
+        except Exception:
+            ap_px_struct = 0.0
+        f1_px_struct = f1_score_max(gt_list_px_struct_flat, pr_list_px_struct_flat)
+
         auroc_both = (auroc_logic + auroc_struct) / 2
 
-    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, auroc_logic, auroc_struct, auroc_both]
+    return {
+        'auroc_sp': auroc_sp, 'ap_sp': ap_sp, 'f1_sp': f1_sp,
+        'auroc_px': auroc_px, 'ap_px': ap_px, 'f1_px': f1_px, 'aupro_px': aupro_px,
+        'logic': {
+            'auroc_sp': auroc_logic, 'ap_sp': ap_logic, 'f1_sp': f1_logic,
+            'auroc_px': auroc_px_logic, 'ap_px': ap_px_logic, 'f1_px': f1_px_logic, 'aupro_px': aupro_px_logic
+        },
+        'struct': {
+            'auroc_sp': auroc_struct, 'ap_sp': ap_struct, 'f1_sp': f1_struct,
+            'auroc_px': auroc_px_struct, 'ap_px': ap_px_struct, 'f1_px': f1_px_struct, 'aupro_px': aupro_px_struct
+        },
+        'combined': auroc_both
+    }
 
 from torch.optim.lr_scheduler import _LRScheduler
 
